@@ -23,6 +23,24 @@ fn refarg_to_str(value: &dyn arg::RefArg) -> String {
         };
 }
 
+fn new_location_trigger(conn: &Connection, location_last: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    println!("new location data available: {}", location_last);
+    let location_proxy = conn.with_proxy(GEOCLUE2_BUS_NAME, location_last.clone(), Duration::from_millis(5000));
+
+    let mut serial_location_props: HashMap<String, String> = HashMap::new();
+    let location_props: arg::PropMap = location_proxy.get_all("org.freedesktop.GeoClue2.Location")?;
+    for (k, v) in location_props.iter() {
+        let key = String::from(k);
+        let value = refarg_to_str(&v);
+        serial_location_props.insert(key.clone(), value.clone());
+    }
+
+    let j = serde_json::to_string(&serial_location_props)?;
+    println!("{}", j);
+
+    Ok(())
+}
+
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     // get dbus connection
     let conn = Connection::new_system()?;
@@ -56,19 +74,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         let location = client_proxy.location()?;
         if location != location_last {
             location_last = location;
-            println!("new location data available: {}", location_last);
-            let location_proxy = conn.with_proxy(GEOCLUE2_BUS_NAME, location_last.clone(), Duration::from_millis(5000));
-
-            let mut serial_location_props: HashMap<String, String> = HashMap::new();
-            let location_props: arg::PropMap = location_proxy.get_all("org.freedesktop.GeoClue2.Location")?;
-            for (k, v) in location_props.iter() {
-                let key = String::from(k);
-                let value = refarg_to_str(&v);
-                serial_location_props.insert(key.clone(), value.clone());
-            }
-
-            let j = serde_json::to_string(&serial_location_props)?;
-            println!("{}", j)
+            new_location_trigger(&conn, &location_last)?;
         }
     }
 }
