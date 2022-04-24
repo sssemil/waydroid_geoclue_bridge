@@ -10,6 +10,7 @@ use crate::manager_gen::OrgFreedesktopGeoClue2Manager;
 const GEOCLUE2_BUS_NAME: &str = "org.freedesktop.GeoClue2";
 
 fn refarg_to_str(value: &dyn arg::RefArg) -> String {
+    // TODO: Handle datetime object
     return
         if let Some(s) = value.as_str() {
             String::from(s)
