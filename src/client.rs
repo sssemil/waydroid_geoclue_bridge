@@ -53,6 +53,26 @@ fn new_location_trigger(conn: &Connection, location_last: &Path) -> Result<(), B
     Ok(())
 }
 
+fn handle_signal(_: OrgFreedesktopGeoClue2ClientLocationUpdated, c: &Connection, m: &Message) -> bool {
+    if let Some(client_path) = m.path() {
+        let client_proxy = c.with_proxy(GEOCLUE2_BUS_NAME, client_path.clone(), Duration::from_millis(5000));
+
+        match client_proxy.location() {
+            Ok(location) => {
+                let result = new_location_trigger(&c, &location);
+                match result {
+                    Ok(_) => { println!("Location update parsed.") }
+                    Err(e) => { eprintln!("Couldn't send location further: {}", e) }
+                }
+            }
+            Err(e) => {
+                eprintln!("Couldn't get the location data on signal trigger: {}", e)
+            }
+        }
+    }
+    true
+}
+
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     // get dbus connection
     let conn = Connection::new_system()?;
@@ -70,27 +90,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     // Let's start listening to signals.
     println!("setting listener");
-    let _id = client_proxy.match_signal(|h: OrgFreedesktopGeoClue2ClientLocationUpdated, c: &Connection, m: &Message| {
-        match m.path() {
-            Some(client_path) => {
-                let client_proxy = c.with_proxy(GEOCLUE2_BUS_NAME, client_path.clone(), Duration::from_millis(5000));
-                match client_proxy.location() {
-                    Ok(location) => {
-                        let result = new_location_trigger(&c, &location);
-                        match result {
-                            Ok(_) => { println!("Location update parsed.") }
-                            Err(e) => { eprintln!("Couldn't send location further: {}", e) }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Couldn't get the location data on signal trigger: {}", e)
-                    }
-                }
-            }
-            _ => {}
-        }
-        true
-    });
+    let _id = client_proxy.match_signal(handle_signal);
 
     println!("starting client");
     client_proxy.start()?;
